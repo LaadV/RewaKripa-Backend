@@ -8,7 +8,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Backend Running Thanks",
+    message: "Backend Running prakhar Thanks",
   });
 });
 
