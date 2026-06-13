@@ -1,227 +1,259 @@
 -- ============================================================
---  REWA KRIPA TRAVELS — Complete Supabase Database Setup
---  Run this entire file in: Supabase → SQL Editor → New Query → Run
---  Safe to run multiple times (uses IF NOT EXISTS + DROP IF EXISTS)
+--  REWA KRIPA TRAVELS — Complete Supabase Setup
+--  Run this in: Supabase → SQL Editor → New Query → Run
+--  Safe to run multiple times (IF NOT EXISTS everywhere)
 -- ============================================================
 
-
--- ────────────────────────────────────────────────────────────
--- 1. SEATS TABLE  (real-time shared seat booking)
--- ────────────────────────────────────────────────────────────
-create table if not exists seats (
-  id              bigint generated always as identity primary key,
-  bus_id          text        not null,
-  travel_date     date        not null,
-  seat_num        int         not null,
-  gender          text        not null default 'M',
-  passenger_name  text        default '',
-  passenger_phone text        default '',
-  status          text        not null default 'booked',
-  booked_at       timestamptz default now(),
-  constraint seats_unique unique (bus_id, travel_date, seat_num),
-  constraint gender_check check (gender in ('M','F'))
+-- ── 1. SEATS ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS seats (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  bus_id          TEXT        NOT NULL,
+  travel_date     DATE        NOT NULL,
+  seat_num        INT         NOT NULL,
+  gender          TEXT        NOT NULL DEFAULT 'M' CHECK (gender IN ('M','F')),
+  passenger_name  TEXT        DEFAULT '',
+  passenger_phone TEXT        DEFAULT '',
+  status          TEXT        NOT NULL DEFAULT 'booked',
+  booked_at       TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT seats_unique UNIQUE (bus_id, travel_date, seat_num)
 );
 
-create index if not exists idx_seats_bus_date
-  on seats (bus_id, travel_date);
-
-
--- ────────────────────────────────────────────────────────────
--- 2. SITE CONFIG TABLE  (admin-editable, public-readable)
--- ────────────────────────────────────────────────────────────
-create table if not exists site_config (
-  id          int         primary key default 1,
-  config_json jsonb,
-  updated_at  timestamptz default now()
+-- ── 2. SITE CONFIG ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS site_config (
+  id          INT PRIMARY KEY DEFAULT 1,
+  config_json JSONB,
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
-
--- ────────────────────────────────────────────────────────────
--- 3. STAFF TABLE
--- ────────────────────────────────────────────────────────────
-create table if not exists staff (
-  id           bigint generated always as identity primary key,
-  name         text    not null,
-  role         text    not null check (role in ('driver','conductor','helper','office')),
-  phone        text    not null,
-  whatsapp     text    default '',
-  photo_url    text    default '',
-  bus_id       text    default '',
-  bus_plate    text    default '',
-  salary       int     default 0,
-  join_date    text    default '',
-  address      text    default '',
-  id_proof     text    default '',
-  active       boolean default true,
-  created_at   timestamptz default now(),
-  updated_at   timestamptz default now()
+-- ── 3. BUSES ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS buses (
+  id          TEXT PRIMARY KEY,
+  plate       TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  image       TEXT DEFAULT '',
+  bus_type    TEXT DEFAULT 'AC Seater',
+  layout      TEXT DEFAULT '2x2',
+  capacity    INT  DEFAULT 40,
+  climate     TEXT DEFAULT 'Full AC',
+  price       INT  DEFAULT 230,
+  route       TEXT DEFAULT '',
+  departure   TEXT DEFAULT '',
+  tags        JSONB DEFAULT '[]',
+  features    JSONB DEFAULT '[]',
+  description TEXT DEFAULT '',
+  driver      JSONB DEFAULT '{}',
+  active      BOOLEAN DEFAULT TRUE,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Sample staff (only inserted once — skip if already exist)
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Raju Sharma',   'driver',    '+91 98765 43210', '919876543210', 'bus1', 'MP09CY8606', 22000, '2020-01-15'
-where not exists (select 1 from staff where phone = '+91 98765 43210');
-
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Suresh Patel',  'driver',    '+91 98765 43211', '919876543211', 'bus2', 'MP09CY7782', 22000, '2021-03-10'
-where not exists (select 1 from staff where phone = '+91 98765 43211');
-
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Mohan Verma',   'conductor', '+91 98765 43212', '919876543212', 'bus1', 'MP09CY8606', 14000, '2020-01-15'
-where not exists (select 1 from staff where phone = '+91 98765 43212');
-
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Dinesh Kumar',  'conductor', '+91 98765 43213', '919876543213', 'bus2', 'MP09CY7782', 14000, '2021-03-10'
-where not exists (select 1 from staff where phone = '+91 98765 43213');
-
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Ramesh Helper', 'helper',    '+91 98765 43214', '919876543214', 'bus3', 'MP09CY9911', 10000, '2022-06-01'
-where not exists (select 1 from staff where phone = '+91 98765 43214');
-
-insert into staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
-select 'Anita Devi',    'office',    '+91 98765 43215', '919876543215', '',    '',            15000, '2019-08-20'
-where not exists (select 1 from staff where phone = '+91 98765 43215');
-
-
--- ────────────────────────────────────────────────────────────
--- 4. ATTENDANCE TABLE
--- ────────────────────────────────────────────────────────────
-create table if not exists attendance (
-  id           bigint generated always as identity primary key,
-  staff_id     bigint references staff(id) on delete cascade,
-  staff_name   text    not null,
-  role         text    not null,
-  bus_id       text    default '',
-  bus_plate    text    default '',
-  date         date    not null default current_date,
-  status       text    not null default 'absent'
-               check (status in ('present','absent','halfday','leave','late')),
-  check_in     text    default '',
-  note         text    default '',
-  marked_by    text    default 'admin',
-  wa_confirmed boolean default false,
-  created_at   timestamptz default now(),
-  updated_at   timestamptz default now(),
-  unique(staff_id, date)
+-- ── 4. ROUTES ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS routes (
+  id         TEXT PRIMARY KEY,
+  bus_id     TEXT REFERENCES buses(id) ON DELETE SET NULL,
+  from_city  TEXT NOT NULL,
+  to_city    TEXT NOT NULL,
+  via        TEXT DEFAULT '',
+  label      TEXT NOT NULL,
+  image      TEXT DEFAULT '',
+  duration   TEXT DEFAULT '',
+  route_type TEXT DEFAULT 'Daily',
+  first_bus  TEXT DEFAULT '',
+  last_bus   TEXT DEFAULT '',
+  price      INT  DEFAULT 200,
+  rating     NUMERIC(3,1) DEFAULT 4.5,
+  reviews    TEXT DEFAULT '0',
+  status     TEXT DEFAULT 'open' CHECK (status IN ('open','closed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-create index if not exists idx_attendance_date
-  on attendance (date);
-
-create index if not exists idx_attendance_staff_date
-  on attendance (staff_id, date);
-
-
--- ────────────────────────────────────────────────────────────
--- 5. FINANCE ENTRIES TABLE
--- ────────────────────────────────────────────────────────────
-create table if not exists finance_entries (
-  id          text primary key,
-  type        text          not null check (type in ('income','expense')),
-  bus_id      text          not null,
-  bus_plate   text          default '',
-  bus_title   text          default '',
-  date        date          not null,
-  category    text          not null,
-  amount      numeric(12,2) not null,
-  route       text          default '',
-  pax1        int           default 0,
-  pax2        int           default 0,
-  fare        numeric(10,2) default 0,
-  vendor      text          default '',
-  ref_no      text          default '',
-  notes       text          default '',
-  created_at  timestamptz   default now()
+-- ── 5. TRIPS ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS trips (
+  id           TEXT PRIMARY KEY,
+  title        TEXT NOT NULL,
+  short_title  TEXT NOT NULL,
+  subtitle     TEXT DEFAULT '',
+  image        TEXT DEFAULT '',
+  badge        TEXT DEFAULT 'popular',
+  badge_label  TEXT DEFAULT '',
+  price        INT  DEFAULT 2000,
+  departure    TEXT DEFAULT '',
+  return_date  TEXT DEFAULT '',
+  duration     TEXT DEFAULT '',
+  seats_left   INT  DEFAULT 0,
+  meals        TEXT DEFAULT '',
+  bus_type     TEXT DEFAULT 'AC Coach',
+  description  TEXT DEFAULT '',
+  itinerary    JSONB DEFAULT '[]',
+  inclusions   JSONB DEFAULT '[]',
+  exclusions   JSONB DEFAULT '[]',
+  notes        JSONB DEFAULT '[]',
+  active       BOOLEAN DEFAULT TRUE,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
-create index if not exists idx_finance_bus_date
-  on finance_entries (bus_id, date);
+-- ── 6. STAFF ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS staff (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  name        TEXT NOT NULL,
+  role        TEXT NOT NULL CHECK (role IN ('driver','conductor','helper','office')),
+  phone       TEXT NOT NULL,
+  whatsapp    TEXT DEFAULT '',
+  photo_url   TEXT DEFAULT '',
+  bus_id      TEXT DEFAULT '',
+  bus_plate   TEXT DEFAULT '',
+  salary      INT  DEFAULT 0,
+  join_date   TEXT DEFAULT '',
+  address     TEXT DEFAULT '',
+  id_proof    TEXT DEFAULT '',
+  active      BOOLEAN DEFAULT TRUE,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
 
-create index if not exists idx_finance_type
-  on finance_entries (type);
+-- ── 7. ATTENDANCE ────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS attendance (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  staff_id     BIGINT REFERENCES staff(id) ON DELETE CASCADE,
+  staff_name   TEXT NOT NULL,
+  role         TEXT NOT NULL,
+  bus_id       TEXT DEFAULT '',
+  bus_plate    TEXT DEFAULT '',
+  date         DATE NOT NULL DEFAULT CURRENT_DATE,
+  status       TEXT NOT NULL DEFAULT 'absent'
+               CHECK (status IN ('present','absent','halfday','leave','late')),
+  check_in     TEXT DEFAULT '',
+  note         TEXT DEFAULT '',
+  marked_by    TEXT DEFAULT 'admin',
+  wa_confirmed BOOLEAN DEFAULT FALSE,
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  CONSTRAINT attendance_unique UNIQUE (staff_id, date)
+);
 
+-- ── 8. FINANCE ───────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  bus_id      TEXT NOT NULL,
+  bus_plate   TEXT DEFAULT '',
+  bus_title   TEXT DEFAULT '',
+  date        DATE NOT NULL,
+  type        TEXT NOT NULL CHECK (type IN ('income','expense')),
+  category    TEXT NOT NULL,
+  amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
+  route       TEXT DEFAULT '',
+  pax1        INT  DEFAULT 0,
+  pax2        INT  DEFAULT 0,
+  fare        NUMERIC(10,2) DEFAULT 0,
+  vendor      TEXT DEFAULT '',
+  ref_no      TEXT DEFAULT '',
+  notes       TEXT DEFAULT '',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
 
--- ────────────────────────────────────────────────────────────
--- 6. ROW LEVEL SECURITY — Enable on all tables
--- ────────────────────────────────────────────────────────────
-alter table seats           enable row level security;
-alter table site_config     enable row level security;
-alter table staff           enable row level security;
-alter table attendance      enable row level security;
-alter table finance_entries enable row level security;
+-- ── 9. ROW LEVEL SECURITY ────────────────────────────────────
+ALTER TABLE seats           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE site_config     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE buses           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE routes          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE trips           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE staff           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE attendance      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE finance_entries ENABLE ROW LEVEL SECURITY;
 
+-- Drop old policies before recreating
+DO $$ DECLARE r RECORD;
+BEGIN
+  FOR r IN SELECT policyname, tablename FROM pg_policies
+    WHERE tablename IN ('seats','site_config','buses','routes','trips','staff','attendance','finance_entries')
+  LOOP
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', r.policyname, r.tablename);
+  END LOOP;
+END $$;
 
--- ────────────────────────────────────────────────────────────
--- 7. RLS POLICIES — Drop old, create fresh
--- ────────────────────────────────────────────────────────────
+-- Public tables (seats, config, buses, routes, trips) — anyone can read/write
+CREATE POLICY "public_all" ON seats           FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_all" ON site_config     FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "public_read" ON buses          FOR SELECT USING (true);
+CREATE POLICY "public_read" ON routes         FOR SELECT USING (true);
+CREATE POLICY "public_read" ON trips          FOR SELECT USING (true);
 
--- seats
-drop policy if exists "seats_select" on seats;
-drop policy if exists "seats_insert" on seats;
-drop policy if exists "seats_update" on seats;
-drop policy if exists "seats_delete" on seats;
+-- Admin tables (staff, attendance, finance) — service role key bypasses RLS
+-- Frontend uses service-role via backend, so anon key gets blocked here
+CREATE POLICY "service_all" ON buses           FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_all" ON routes          FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_all" ON trips           FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_all" ON staff           FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_all" ON attendance      FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_all" ON finance_entries FOR ALL USING (true) WITH CHECK (true);
 
-create policy "seats_select" on seats for select using (true);
-create policy "seats_insert" on seats for insert with check (true);
-create policy "seats_update" on seats for update using (true);
-create policy "seats_delete" on seats for delete using (true);
+-- ── 10. REAL-TIME ────────────────────────────────────────────
+DO $$
+BEGIN
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE seats;       EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE attendance;  EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE staff;       EXCEPTION WHEN OTHERS THEN NULL; END;
+END $$;
 
--- site_config
-drop policy if exists "config_select" on site_config;
-drop policy if exists "config_all"    on site_config;
+-- ── 11. INDEXES ──────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_seats_bus_date      ON seats (bus_id, travel_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_date     ON attendance (date);
+CREATE INDEX IF NOT EXISTS idx_attendance_staff    ON attendance (staff_id, date);
+CREATE INDEX IF NOT EXISTS idx_finance_bus_date    ON finance_entries (bus_id, date);
+CREATE INDEX IF NOT EXISTS idx_finance_type        ON finance_entries (type, date);
 
-create policy "config_select" on site_config for select using (true);
-create policy "config_all"    on site_config for all    using (true) with check (true);
+-- ── 12. SEED DEFAULT DATA ────────────────────────────────────
+INSERT INTO buses (id, plate, title, image, bus_type, layout, capacity, climate, price, route, departure, tags, features, description, driver)
+VALUES
+  ('bus1','MP09CY8606','Luxury Seater','images/bus1.jpeg','AC Seater','2x2',40,'Full AC',230,'Barwani → Pati → Bokrata','08:00 AM',
+   '["❄️ AC","📶 WiFi","🔌 USB","💺 Recliner"]',
+   '["❄️ Air Conditioning","📶 Free WiFi","🔌 USB Charging","💺 Recliner Seats","💡 Reading Light","📹 CCTV Camera"]',
+   'Our flagship Luxury Seater with premium 2×2 recliner seating.',
+   '{"name":"Raju Sharma","phone":"+91 98765 43210","licence":"MP09 DL 2019 0012345","exp":"8+ Years Experience","photo":""}'),
+  ('bus2','MP09CY7782','AC Seater','images/bus2.jpeg','AC Pushback','2x2',44,'Full AC',230,'Barwani → Pati','09:00 AM',
+   '["❄️ AC","💡 Reading Light","☕ Cup Holder"]',
+   '["❄️ Air Conditioning","💡 Reading Light","☕ Cup Holder","🔌 USB Charging","💺 Pushback Seats","📹 CCTV Camera"]',
+   'Comfortable AC Seater with pushback reclining, cup holders, and reading lights.',
+   '{"name":"Suresh Patel","phone":"+91 98765 43211","licence":"MP09 DL 2020 0054321","exp":"6+ Years Experience","photo":""}'),
+  ('bus3','MP09CY9911','Premium Coach','images/bus3.jpeg','Premium AC','2x1',36,'Full AC',350,'Indore → Barwani','07:00 AM',
+   '["🎬 Entertainment","🍿 Snacks","📺 LED"]',
+   '["🎬 Entertainment System","🍿 Complimentary Snacks","📺 LED Displays","❄️ Full AC","🔌 USB Charging","📶 Free WiFi"]',
+   'The ultimate travel experience. Entertainment system, complimentary snacks, LED displays.',
+   '{"name":"Mohan Verma","phone":"+91 98765 43212","licence":"MP09 DL 2018 0098765","exp":"10+ Years Experience","photo":""}'),
+  ('bus4','MP09CY4455','Budget Seater','images/bus4.jpeg','Non-AC Seater','2x3',52,'Ceiling Fans',170,'Anjad → Indore','07:30 AM',
+   '["💨 Fan","💰 Budget","🧳 Luggage"]',
+   '["💨 Ceiling Fans","🧳 Luggage Racks","💰 Budget Fares","⏱️ On-time Service"]',
+   'Reliable and economical. Clean, punctual, and ideal for budget-conscious travellers.',
+   '{"name":"Dinesh Kumar","phone":"+91 98765 43213","licence":"MP09 DL 2021 0011111","exp":"4+ Years Experience","photo":""}')
+ON CONFLICT (id) DO NOTHING;
 
--- staff
-drop policy if exists "staff_select" on staff;
-drop policy if exists "staff_all"    on staff;
+INSERT INTO routes (id, bus_id, from_city, to_city, via, label, image, duration, route_type, first_bus, last_bus, price, rating, reviews, status)
+VALUES
+  ('barwani-bokrata','bus1','Barwani','Bokrata','Pati','Barwani → Pati → Bokrata','images/bus1.jpeg','4.5 hrs','MP State Highway · Daily','08:30 AM','05:00 PM',230,4.9,'1,060+','open'),
+  ('indore-barwani','bus3','Indore','Barwani','','Indore → Barwani','images/bus4.jpeg','3–4 hrs','Daily Highway Route','06:50 AM','08:30 PM',230,4.8,'980+','open'),
+  ('barwani-indore','bus2','Barwani','Indore','','Barwani → Indore','images/bus2.jpeg','3–4 hrs','Express Route','08:30 AM','04:15 PM',230,4.7,'860+','open'),
+  ('anjad-indore','bus4','Anjad','Indore','','Anjad → Indore','images/bus3.jpeg','2.5 hrs','Daily Morning Route','07:30 AM','12:00 PM',170,4.6,'540+','open')
+ON CONFLICT (id) DO NOTHING;
 
-create policy "staff_select" on staff for select using (true);
-create policy "staff_all"    on staff for all    using (true) with check (true);
+INSERT INTO staff (name, role, phone, whatsapp, bus_id, bus_plate, salary, join_date)
+VALUES
+  ('Raju Sharma',   'driver',    '+91 98765 43210','919876543210','bus1','MP09CY8606',22000,'2020-01-15'),
+  ('Suresh Patel',  'driver',    '+91 98765 43211','919876543211','bus2','MP09CY7782',22000,'2021-03-10'),
+  ('Mohan Verma',   'conductor', '+91 98765 43212','919876543212','bus1','MP09CY8606',14000,'2020-01-15'),
+  ('Dinesh Kumar',  'conductor', '+91 98765 43213','919876543213','bus2','MP09CY7782',14000,'2021-03-10'),
+  ('Ramesh Helper', 'helper',    '+91 98765 43214','919876543214','bus3','MP09CY9911',10000,'2022-06-01'),
+  ('Anita Devi',    'office',    '+91 98765 43215','919876543215','',   '',           15000,'2019-08-20')
+ON CONFLICT DO NOTHING;
 
--- attendance
-drop policy if exists "att_select" on attendance;
-drop policy if exists "att_all"    on attendance;
-
-create policy "att_select" on attendance for select using (true);
-create policy "att_all"    on attendance for all    using (true) with check (true);
-
--- finance_entries
-drop policy if exists "fin_select" on finance_entries;
-drop policy if exists "fin_all"    on finance_entries;
-
-create policy "fin_select" on finance_entries for select using (true);
-create policy "fin_all"    on finance_entries for all    using (true) with check (true);
-
-
--- ────────────────────────────────────────────────────────────
--- 8. REAL-TIME — Enable for seats + attendance
--- ────────────────────────────────────────────────────────────
-do $$ begin
-  begin
-    alter publication supabase_realtime add table seats;
-  exception when others then null;
-  end;
-  begin
-    alter publication supabase_realtime add table attendance;
-  exception when others then null;
-  end;
-end $$;
-
-
--- ────────────────────────────────────────────────────────────
--- 9. VERIFY — Should return 5 rows
--- ────────────────────────────────────────────────────────────
-select table_name,
-       pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) as size
-from   information_schema.tables
-where  table_schema = 'public'
-  and  table_name in ('seats','site_config','staff','attendance','finance_entries')
-order  by table_name;
+-- ── VERIFY ───────────────────────────────────────────────────
+SELECT table_name, pg_size_pretty(pg_total_relation_size(quote_ident(table_name))) AS size
+FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN ('seats','site_config','buses','routes','trips','staff','attendance','finance_entries')
+ORDER BY table_name;
 
 -- ============================================================
---  DONE ✅  All 5 tables created and secured.
---  Next: copy Project URL + anon key into frontend .env.local
---        copy Project URL + service role key into backend .env
+-- DONE ✅  All 8 tables created with seed data
 -- ============================================================
